@@ -1,103 +1,139 @@
-
-from multiprocessing import context
-from turtle import update
-
 from telegram import Update
-from telegram.ext import ConversationHandler, Updater, CommandHandler, CallbackContext, MessageHandler, Application, filters
+from telegram.ext import *
 
-TOKEN = '8915397953:AAF0t86yYYjw20i0fmJfGkabRI87V7HUwfQ'
+PW = 1
+# Definition for the points modification step state
+INPUT_POINTS = 2
+
+TOKEN = '8915397953:AAEUxx-NJtqM7bVbUwn9q5NKiDktUzJ8bbw'
 ching_status = [10]
-mission_status = [["影片請安", "對鏡Edge", "IG Po 相"],
-                  ["户外露出相", "姿勢訓練", "Edging", "Thread Update"]]
+mission_status = [[["影片請安", 0, 1], ["對鏡Edge", 0, 1], ["IG Po 相", 0, 1]],
+                  [["户外露出相", 0, 1], ["姿勢訓練", 0, 3], ["Edging", 0, 10], ["Thread Update", 0, 1]]]
 
 
-async def start_command(update: Update, context: CallbackContext):
-    await update.message.reply_text("歡迎使用本機器人，請輸入指令:\n1. 更改積分\n2. 積分相關\n3. 任務相關")
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("歡迎使用本機器人，請輸入指令:\n1. 更改積分\n2. 查詢積分\n3. 任務相關")
 
 
-async def check_mission_command(update: Update, context: CallbackContext) -> str:
-    await update.message.reply_text("每日任務(+1pt): \n影片請安 (0/1) \n對鏡Edge (0/1)\nIG Po 相 (0/1) \n \n每週任務(+5pt):  \n户外露出相 (0/1) \n姿勢訓練 (0/3) \nEdging (0/10) \nThread Update (0/1)")
+async def check_mission_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "每日任務(+1pt): \n" + str(mission_status[0][0][0]) + " (" + str(
+            mission_status[0][0][1]) + "/" + str(mission_status[0][0][2]) + ") "
+        "\n" + str(mission_status[0][1][0]) + " (" + str(mission_status[0]
+                                                         [1][1]) + "/" + str(mission_status[0][1][2]) + ")"
+        "\n" + str(mission_status[0][2][0]) + " (" + str(mission_status[0]
+                                                         [2][1]) + "/" + str(mission_status[0][2][2]) + ") "
+        "\n \n"
+        "每週任務(+5pt):  \n"
+        + str(mission_status[1][0][0]) + " (" + str(mission_status[1]
+                                                    [0][1]) + "/" + str(mission_status[1][0][2]) + ") "
+        "\n" + str(mission_status[1][1][0]) + " (" + str(mission_status[1]
+                                                         [1][1]) + "/" + str(mission_status[1][1][2]) + ") "
+        "\n" + str(mission_status[1][2][0]) + " (" + str(mission_status[1]
+                                                         [2][1]) + "/" + str(mission_status[1][2][2]) + ") "
+        "\nThread Update (" + str(mission_status[1][3][1]) +
+        "/" + str(mission_status[1][3][2]) + ")"
+    )
 
 
-async def update_mission_command(update: Update, context: CallbackContext):
-    await update.message.reply_text("請輸入任務內容:")
-    message = update.message.text
-    await update.message.reply_text(f"任務已新增: {message}")
-
-
-async def pt_check_command(update: Update, context: CallbackContext):
+async def pt_check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if ching_status[0] is not None:
         await update.message.reply_text(f"目前積分為: {ching_status[0]}")
     else:
         await update.message.reply_text("目前尚未有積分。")
 
 
-# async def status_command(update: Update, context: CallbackContext):
-#     flag = False
-#     message = update.message.text
-#     await update.message.reply_text("請輸入新的積分:")
-#     if type(message) == int:
-#         ching_status.append(message)
-#         await update.message.reply_text(f"積分已更改為: {message}")
-#         flag = True
-#     else:
-#         await update.message.reply_text("請輸入數字")
-#     return ching_status
+# ----------------- Conversation State Machine Flow Start -----------------
 
-# async def mission_command(update: Update, context: CallbackContext):
-#     await update.message.reply_text("請輸入任務內容:")
-#     message = update.message.text
-#     await update.message.reply_text(f"任務已新增: {message}")
+# Step 1: Triggered when the user enters "1"
+async def password_intake(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    await update.message.reply_text("請輸入密碼:")
+    return PW  # Switch to PW state and wait for the password input
 
-async def handle_response(update: Update, context: CallbackContext, text: str) -> str:
-    if "1" in text:
-        return "歡迎使用本機器人，請輸入指令:\n1. 更改積分\n2. 積分相關\n3. 任務相關"
-    elif "2" in text:
-        return "Will develope later"
-    elif "3" in text:
-        await check_mission_command(update, context)
-        await start_command(update, context)
+
+# Step 2: Validate the password input
+async def password_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    password = update.message.text
+
+    # Validation Guard: If the text is "1" (the initial entry trigger), ignore it and keep waiting for the actual password
+    if password == "1":
+        return PW
+
+    if password == "1234":  # Assuming the password is "1234"
+        await update.message.reply_text("密碼正確！請輸入新的積分分數:")
+        # Password matches, move to the next state to let the user input the points
+        return INPUT_POINTS
     else:
-        return "我不明白你的意思，請輸入有效的指令。"
+        await update.message.reply_text("密碼錯誤，無法更改積分。對話結束。")
+        await start_command(update, context)
+        return ConversationHandler.END
 
 
-async def handle_message(update: Update, context: CallbackContext):
-    message: str = update.message.text
+# Step 3: Receive and update the score integer
+async def pt_change_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    message_text = update.message.text
+    try:
+        new_points = int(message_text)
+        ching_status[0] = new_points
+        await update.message.reply_text(f"積分已更改為: {new_points}")
+    except ValueError:
+        await update.message.reply_text("請輸入有效的數字。")
+        # If the input is not a number, keep the user in this state to try again
+        return INPUT_POINTS
+
+    await start_command(update, context)
+    return ConversationHandler.END
+
+# ----------------- Conversation State Machine Flow End -----------------
+
+
+# Handle generic text messages (Handles options 2 and 3; option 1 is omitted)
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message = update.message.text
     print(f'User ({update.message.from_user.username}) sent: {message}')
 
-    response: str = await handle_response(update, context, message)
-    print(f'Bot response: {response}')
-    await update.message.reply_text(response)
-
-    # if message == "/command1":
-    #     await update.message.reply_text("請選擇要執行的指令:\n1. 更改積分\n2. 查詢積分\n3. 其他指令")
-    #     #message = update.message.text
-    #     if message == "/command1":
-    #         await update.message.reply_text("after")
-    #         status_amend(update, context, ching_status)
-    #         print("積分已更改")
-    # elif message == "/command2":
-    #     await update.message.reply_text("Who the hell are you?")
-    # elif message == "/command3":
-    #     await update.message.reply_text("What are you saying?")
+    if message == "2":
+        await pt_check_command(update, context)
+        await start_command(update, context)
+    elif message == "3":
+        await check_mission_command(update, context)
+        await start_command(update, context)
+    elif message == "1":
+        # This will not be triggered here because the handler priority prevents option "1" from entering this logic
+        pass
+    else:
+        await update.message.reply_text("請輸入有效的指令。")
 
 
-async def error(update: Update, context: CallbackContext):
+async def error(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f'Update {update} caused error {context.error}')
+
 
 if __name__ == "__main__":
     app = Application.builder().token(TOKEN).build()
 
-    # Commands
+    # 1. Define the ConversationHandler for managing password and points modification states
+    conversation_handler = ConversationHandler(
+        entry_points=[MessageHandler(filters.Regex("^1$"), password_intake)],
+        states={
+            PW: [MessageHandler(filters.TEXT & ~filters.COMMAND, password_command)],
+            INPUT_POINTS: [MessageHandler(filters.TEXT & ~filters.COMMAND, pt_change_command)],
+        },
+        fallbacks=[CommandHandler("start", start_command)]
+    )
+
+    # ⚠️ [CRITICAL] The ConversationHandler must be added BEFORE the regular MessageHandler!
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("pt_check", pt_check_command))
     app.add_handler(CommandHandler("check_mission", check_mission_command))
 
-    # Messages
-    app.add_handler(MessageHandler(filters.TEXT, handle_message))
+    app.add_handler(conversation_handler)  # Registers the state machine
 
-    # Errors
+    # ⚠️ The generic text MessageHandler must be added last and must explicitly filter out "1" to avoid intercepting state entries
+    app.add_handler(MessageHandler(
+        filters.TEXT & ~filters.Regex("^1$"), handle_message))
+
     app.add_error_handler(error)
 
-    # Start the bot.
-    app.run_polling(poll_interval=1.0)
+    print("Bot started...")
+    app.run_polling(poll_interval=2)
