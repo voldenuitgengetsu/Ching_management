@@ -1,7 +1,8 @@
 from telegram import Update
 from telegram.ext import *
 
-PW, REPS = 1
+PW = 1
+REPS = 2
 CHOICE = str(10)  # Definition for the password state
 # Definition for the points modification step state
 INPUT_POINTS = 2
@@ -52,10 +53,12 @@ async def update_mission_intake(update: Update, context: ContextTypes.DEFAULT_TY
 async def update_mission_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     choice = update.message.text
     flag = False
-    for i in range(len(mission_status[0])+len(mission_status[1])):
-        if choice in mission_status[0][i][0]:
+    await update.message.reply_text("您選擇的任務是: " + choice)
+    for i in range(len(mission_status[0])):
+        if choice == mission_status[0][i][0]:
             flag = True
-        elif choice in mission_status[1][i][0]:
+    for i in range(len(mission_status[1])):
+        if choice == mission_status[1][i][0]:
             flag = True
 
     if flag:
@@ -154,7 +157,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif message == "4":  # 任務更新
         await check_mission_command(update, context)
         await update_mission_intake(update, context)
-
+        await update_mission_command(update, context)
+        await update_mission_reps_command(update, context, update.message.text)
     else:
         await update.message.reply_text("請輸入有效的指令。")
 
