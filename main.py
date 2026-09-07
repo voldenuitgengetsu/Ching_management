@@ -1,7 +1,8 @@
 from telegram import Update
 from telegram.ext import *
 
-PW = 1
+PW, REPS = 1
+CHOICE = str(10)  # Definition for the password state
 # Definition for the points modification step state
 INPUT_POINTS = 2
 
@@ -12,7 +13,7 @@ mission_status = [[["影片請安", 0, 1], ["對鏡Edge", 0, 1], ["IG Po 相", 0
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("歡迎使用本機器人，請輸入指令:\n1. 更改積分\n2. 查詢積分\n3. 任務相關")
+    await update.message.reply_text("歡迎使用本機器人，請輸入指令:\n1. 更改積分\n2. 查詢積分\n3. 查詢任務\n 4. 任務更新")
 
 
 async def check_mission_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -43,9 +44,53 @@ async def pt_check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("目前尚未有積分。")
 
 
+async def update_mission_intake(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("請選擇要更新的任務。")
+    return CHOICE
+
+
+async def update_mission_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    choice = update.message.text
+    flag = False
+    for i in range(len(mission_status[0])+len(mission_status[1])):
+        if choice in mission_status[0][i][0]:
+            flag = True
+        elif choice in mission_status[1][i][0]:
+            flag = True
+
+    if flag:
+        await update.message.reply_text("請輸入完成次數:")
+        return REPS, choice
+    else:
+        await update.message.reply_text("請輸入有效的任務名稱。")
+        return CHOICE
+
+
+async def update_mission_reps_command(update: Update, context: ContextTypes.DEFAULT_TYPE, choice: str):
+    reps = update.message.text
+    flag = False
+    for i in range(len(mission_status[0])+len(mission_status[1])):
+        if choice in mission_status[0][i][0]:
+            flag = True
+            mission_status[0][i][1] += int(reps)
+        elif choice in mission_status[1][i][0]:
+            flag = True
+            mission_status[1][i][1] += int(reps)
+
+    if flag:
+        await update.message.reply_text("任務完成次數已更新。")
+        await check_mission_command(update, context)
+        await start_command(update, context)
+        return ConversationHandler.END
+    else:
+        await update.message.reply_text("請輸入有效的任務名稱。")
+        return CHOICE
+
 # ----------------- Conversation State Machine Flow Start -----------------
 
 # Step 1: Triggered when the user enters "1"
+
+
 async def password_intake(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("請輸入密碼:")
     return PW  # Switch to PW state and wait for the password input
@@ -95,12 +140,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if message == "2":
         await pt_check_command(update, context)
         await start_command(update, context)
-    elif message == "3":
+    elif message == "3":  # 查詢任務
         await check_mission_command(update, context)
         await start_command(update, context)
     elif message == "1":
-        # This will not be triggered here because the handler priority prevents option "1" from entering this logic
+        # Start the password intake flow
+        await password_intake(update, context)
+        # Immediately call the password command to handle the input
+        await password_command(update, context)
+        # Immediately call the points change command to handle the input
+        await pt_change_command(update, context)
         pass
+    elif message == "4":  # 任務更新
+        await check_mission_command(update, context)
+        await update_mission_intake(update, context)
+
     else:
         await update.message.reply_text("請輸入有效的指令。")
 
@@ -113,11 +167,21 @@ if __name__ == "__main__":
     app = Application.builder().token(TOKEN).build()
 
     # 1. Define the ConversationHandler for managing password and points modification states
-    conversation_handler = ConversationHandler(
+    conversation_handler_pt_change = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^1$"), password_intake)],
         states={
             PW: [MessageHandler(filters.TEXT & ~filters.COMMAND, password_command)],
             INPUT_POINTS: [MessageHandler(filters.TEXT & ~filters.COMMAND, pt_change_command)],
+        },
+        fallbacks=[CommandHandler("start", start_command)]
+    )
+
+    conversation_handler_mission_update = ConversationHandler(
+        entry_points=[MessageHandler(
+            filters.Regex("^4$"), update_mission_intake)],
+        states={
+            CHOICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, update_mission_command)],
+            REPS: [MessageHandler(filters.TEXT & ~filters.COMMAND, update_mission_reps_command)],
         },
         fallbacks=[CommandHandler("start", start_command)]
     )
@@ -127,7 +191,10 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("pt_check", pt_check_command))
     app.add_handler(CommandHandler("check_mission", check_mission_command))
 
-    app.add_handler(conversation_handler)  # Registers the state machine
+    # Registers the state machine
+    app.add_handler(conversation_handler_pt_change)
+    # Registers the state machine
+    app.add_handler(conversation_handler_mission_update)
 
     # ⚠️ The generic text MessageHandler must be added last and must explicitly filter out "1" to avoid intercepting state entries
     app.add_handler(MessageHandler(
